@@ -1,6 +1,8 @@
-export const INR_BALANCES = {
+import { INR_BALANCE, STOCK_BALANCE } from "../interfaces";
+
+export const INR_BALANCES: INR_BALANCE = {
   user1: {
-    balance: 10,
+    balance: 100,
     locked: 0,
   },
   user2: {
@@ -32,11 +34,17 @@ export const ORDERBOOK = {
   },
 };
 
-export const STOCK_BALANCES = {
+export const STOCK_BALANCES: STOCK_BALANCE = {
   user1: {
     BTC_USDT_10_Oct_2024_9_30: {
+      no: {
+        quantity: 3,
+        locked: 4,
+      },
+    },
+    BTC_USDT_11_Oct_2024_9_30: {
       yes: {
-        quantity: 1,
+        quantity: 2,
         locked: 0,
       },
     },
