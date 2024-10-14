@@ -1,17 +1,31 @@
-import { INR_BALANCE, STOCK_BALANCE } from "../interfaces";
+import {
+  INR_BALANCES_TYPE,
+  ORDER_BOOK_TYPE,
+  STOCK_BALANCES_TYPE,
+} from "../interfaces/globals";
 
-export const INR_BALANCES: INR_BALANCE = {
-  user1: {
-    balance: 100,
-    locked: 0,
+export const INR_BALANCES: INR_BALANCES_TYPE = {};
+
+export const STOCK_BALANCES: STOCK_BALANCES_TYPE = {
+  1: {
+    BTC_USDT_10_Oct_2024_9_30: {
+      no: {
+        quantity: 3,
+        locked: 4,
+      },
+    },
   },
-  user2: {
-    balance: 20,
-    locked: 10,
+  2: {
+    BTC_USDT_10_Oct_2024_9_30: {
+      no: {
+        quantity: 3,
+        locked: 4,
+      },
+    },
   },
 };
 
-export const ORDERBOOK = {
+export const ORDERBOOK: ORDER_BOOK_TYPE = {
   BTC_USDT_10_Oct_2024_9_30: {
     yes: {
       "9.5": {
@@ -31,30 +45,5 @@ export const ORDERBOOK = {
       },
     },
     no: {},
-  },
-};
-
-export const STOCK_BALANCES: STOCK_BALANCE = {
-  user1: {
-    BTC_USDT_10_Oct_2024_9_30: {
-      no: {
-        quantity: 3,
-        locked: 4,
-      },
-    },
-    BTC_USDT_11_Oct_2024_9_30: {
-      yes: {
-        quantity: 2,
-        locked: 0,
-      },
-    },
-  },
-  user2: {
-    BTC_USDT_10_Oct_2024_9_30: {
-      no: {
-        quantity: 3,
-        locked: 4,
-      },
-    },
   },
 };
