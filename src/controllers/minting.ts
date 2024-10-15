@@ -81,3 +81,17 @@ export const mintToken = (req: Request, res: Response) => {
 
   res.send({ message: "Minted Successfully" });
 };
+
+export const reset = (req: Request, res: Response) => {
+  for (let prop in ORDERBOOK) {
+    delete ORDERBOOK[prop];
+  }
+
+  for (let prop in INR_BALANCES) {
+    delete INR_BALANCES[prop];
+  }
+
+  for (let prop in STOCK_BALANCES) {
+    delete STOCK_BALANCES[prop];
+  }
+};

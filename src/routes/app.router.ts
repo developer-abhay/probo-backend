@@ -1,5 +1,5 @@
 import express from "express";
-import { createSymbol, mintToken } from "../controllers/minting";
+import { createSymbol, mintToken, reset } from "../controllers/minting";
 import { createUser } from "../controllers/auth";
 import {
   getInrBalanceByUserId,
@@ -8,7 +8,12 @@ import {
   getStockBalances,
   onRamp,
 } from "../controllers/balance";
-import { buyOrder, getOrderBook, sellOrder } from "../controllers/orders";
+import {
+  buyOrder,
+  getOrderBook,
+  sellOrder,
+  viewOrders,
+} from "../controllers/orders";
 
 const router = express.Router();
 
@@ -25,11 +30,14 @@ router.post("/onramp/inr", onRamp);
 
 // Orders
 router.get("/orderbook", getOrderBook);
+router.get("/orderbook/:stockSymbol", viewOrders);
 router.post("/order/buy", buyOrder);
 router.post("/order/sell", sellOrder);
-// router.get("/orderbook/:stockSymbol", viewOrders);
 
 // Minting
 router.post("/trade/mint", mintToken);
+
+// Reset
+router.post("/reset", reset);
 
 export default router;

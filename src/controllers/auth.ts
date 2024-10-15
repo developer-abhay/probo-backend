@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { INR_BALANCES } from "../config/globals";
+import { INR_BALANCES, STOCK_BALANCES } from "../config/globals";
 
 export const createUser = (req: Request, res: Response) => {
   const userId: string = req.params.userId;
@@ -17,5 +17,6 @@ export const createUser = (req: Request, res: Response) => {
   }
 
   INR_BALANCES[userId] = { balance: 0, locked: 0 };
+  STOCK_BALANCES[userId] = {};
   res.send({ message: "User created Successfully" });
 };

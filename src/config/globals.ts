@@ -25,13 +25,13 @@ export const STOCK_BALANCES: STOCK_BALANCES_TYPE = {
   },
 };
 
-export const ORDERBOOK: ORDER_BOOK_TYPE = {
+export let ORDERBOOK: ORDER_BOOK_TYPE = {
   BTC_USDT_10_Oct_2024_9_30: {
     yes: {
       "9.5": {
-        total: 12,
+        total: 20,
         orders: {
-          user1: 2,
+          user1: 10,
           user2: 10,
         },
       },
@@ -44,6 +44,14 @@ export const ORDERBOOK: ORDER_BOOK_TYPE = {
         },
       },
     },
-    no: {},
+    no: {
+      "4.5": {
+        total: 20,
+        orders: {
+          user1: 10,
+          user2: 10,
+        },
+      },
+    },
   },
 };
