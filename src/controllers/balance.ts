@@ -1,10 +1,9 @@
 import { Request, Response } from "express";
 import { INR_BALANCES, STOCK_BALANCES } from "../config/globals";
-import { ON_RAMP_REQUEST } from "../interfaces/requestModels";
 
 // Get INR Balance
 export const getInrBalances = (req: Request, res: Response) => {
-  res.send({ data: INR_BALANCES });
+  res.status(200).send(INR_BALANCES);
 };
 
 // Get INR Balance by User Id
@@ -19,12 +18,12 @@ export const getInrBalanceByUserId = (req: Request, res: Response) => {
   }
 
   const balance = INR_BALANCES[userId].balance;
-  res.send({ data: { balance } });
+  res.send({ balance });
 };
 
 // Get Stock Balance
 export const getStockBalances = (req: Request, res: Response) => {
-  res.send({ data: STOCK_BALANCES });
+  res.send(STOCK_BALANCES);
 };
 
 // Get Stock Balance By User Id
@@ -83,7 +82,7 @@ export const onRamp = (req: Request, res: Response) => {
 
   INR_BALANCES[userId].balance += amount;
 
-  res.send({
-    message: "Successfully added money to wallet",
+  res.status(200).send({
+    message: `Onramped ${userId} with amount ${amount}`,
   });
 };

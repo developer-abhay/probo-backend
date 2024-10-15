@@ -23,13 +23,14 @@ export const createSymbol = (req: Request, res: Response) => {
     no: {},
   };
 
-  res.send({ message: "New symbol created" });
+  res.status(201).send({ message: `Symbol ${stockSymbol} created` });
 };
 
 // Mint New Stocks of a given symbol
 export const mintToken = (req: Request, res: Response) => {
   const { userId, stockSymbol }: MINT_REQUEST = req.body;
   const quantity = Number(req.body.quantity);
+  const price = Number(req.body.price);
 
   const userExists = INR_BALANCES[userId];
   const symbolExists = ORDERBOOK[stockSymbol];
@@ -43,8 +44,9 @@ export const mintToken = (req: Request, res: Response) => {
     return;
   }
 
-  const requiredBalance = quantity * 10; // 10 rupees per stock pair (yes and no)
-  const userBalance = INR_BALANCES[userId].balance / 100;
+  const requiredBalance = quantity * price; // 2 * price in paise per stock pair (yes and no)
+  // const requiredBalance = quantity * price; // price in paise per stock pair (yes and no)
+  const userBalance = INR_BALANCES[userId].balance;
 
   if (requiredBalance > userBalance) {
     res.send({ message: "Insufficient INR Balance" });
@@ -79,7 +81,12 @@ export const mintToken = (req: Request, res: Response) => {
     };
   }
 
-  res.send({ message: "Minted Successfully" });
+  const remainingBalance = userBalance - requiredBalance;
+  INR_BALANCES[userId].balance = remainingBalance;
+
+  res.status(200).send({
+    message: `Minted ${quantity} 'yes' and 'no' tokens for user ${userId}, remaining balance is ${remainingBalance}`,
+  });
 };
 
 export const reset = (req: Request, res: Response) => {
@@ -94,4 +101,5 @@ export const reset = (req: Request, res: Response) => {
   for (let prop in STOCK_BALANCES) {
     delete STOCK_BALANCES[prop];
   }
+  res.status(200).send({ message: "Reset Successfully" });
 };

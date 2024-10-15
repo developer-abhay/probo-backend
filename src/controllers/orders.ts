@@ -4,7 +4,7 @@ import { ORDER_REQUEST } from "../interfaces/requestModels";
 
 // Get order book
 export const getOrderBook = (req: Request, res: Response) => {
-  res.send({ data: ORDERBOOK });
+  res.send(ORDERBOOK);
 };
 
 // View Buy and Sell Orders
@@ -42,14 +42,20 @@ export const buyOrder = (req: Request, res: Response) => {
   const userBalance = INR_BALANCES[userId].balance;
 
   if (requiredBalance > userBalance) {
-    res.send({ message: "Insufficient INR Balance" });
+    res.status(400).send({ message: "Insufficient INR balance" });
     return;
   }
 
-  const priceInRupee = price / 100;
+  const ordersAllPrices = ORDERBOOK[stockSymbol][stockType];
 
-  const availableQuantity =
-    ORDERBOOK[stockSymbol][stockType][priceInRupee]?.total || 0;
+  // Check for total available quantity of all stocks
+  let availableQuantity = 0;
+
+  for (const orderPrice in ordersAllPrices) {
+    if (Number(orderPrice) <= price && ordersAllPrices[orderPrice].total > 0) {
+      availableQuantity += ordersAllPrices[orderPrice].total;
+    }
+  }
 
   if (quantity > availableQuantity) {
     // Create a sell order for the opposite stock type
@@ -57,27 +63,7 @@ export const buyOrder = (req: Request, res: Response) => {
     return;
   }
 
-  // Deduct User's INR Balance
-  INR_BALANCES[userId].balance -= quantity * price;
-
-  // Deduct Stocks from orderbook
-  ORDERBOOK[stockSymbol][stockType][priceInRupee].total =
-    availableQuantity - quantity;
-
-  const orders = ORDERBOOK[stockSymbol][stockType][priceInRupee].orders;
-  let requiredQuantity = quantity;
-  for (const order in orders) {
-    if (orders[order] >= requiredQuantity) {
-      orders[order] -= requiredQuantity;
-      requiredQuantity = 0;
-      break;
-    } else if (orders[order] < requiredQuantity) {
-      requiredQuantity -= orders[order];
-      orders[order] = 0;
-    }
-  }
-
-  // Add stock to user's Stock Balance
+  // *******Add stock to user's Stock Balance*********
   const stockAvailable = STOCK_BALANCES[userId][stockSymbol]; // Does user already have this stock.
   if (stockAvailable) {
     stockAvailable[stockType] = {
@@ -92,7 +78,89 @@ export const buyOrder = (req: Request, res: Response) => {
       },
     };
   }
-  res.send({ message: "Order placed successfully" });
+
+  // Main Matching Logic
+  let requiredQuantity = quantity;
+  for (const orderPrice in ordersAllPrices) {
+    if (ordersAllPrices[orderPrice].total > requiredQuantity) {
+      //Deduct User's INR Balance
+      INR_BALANCES[userId].balance -= requiredQuantity * Number(orderPrice);
+
+      // Deduct from total quantity of stocks
+      ordersAllPrices[orderPrice].total -= requiredQuantity;
+
+      // Deduct Stocks from orderbook
+      const orders = ordersAllPrices[orderPrice].orders;
+
+      for (const user in orders) {
+        if (orders[user] >= requiredQuantity) {
+          // Add money to sellers account
+          INR_BALANCES[user].balance += requiredQuantity * Number(orderPrice);
+
+          STOCK_BALANCES[user][stockSymbol][stockType]!.locked -=
+            requiredQuantity;
+
+          // Deduct stocks from orderbook
+          orders[user] -= requiredQuantity;
+          requiredQuantity = 0;
+          break;
+        } else if (orders[user] < requiredQuantity) {
+          // Add money to sellers account
+          INR_BALANCES[user].balance += orders[user] * price;
+          STOCK_BALANCES[user][stockSymbol][stockType]!.locked -= orders[user];
+          // Deduct stocks from orderbook
+          requiredQuantity -= orders[user];
+          orders[user] = 0;
+        }
+      }
+      res.status(200).send({
+        message: `Buy order matched at best price ${orderPrice}`,
+      });
+      return;
+    }
+    // Partial Matching
+    else {
+      let availableAtBestPrice = ordersAllPrices[orderPrice].total;
+      requiredQuantity -= availableAtBestPrice;
+
+      //Deduct User's INR Balance
+      INR_BALANCES[userId].balance -= availableAtBestPrice * Number(orderPrice); // all stocks of best price (less than required)
+
+      // Deduct from total quantity of stocks
+      ordersAllPrices[orderPrice].total = 0;
+
+      // Deduct Stocks from users in orderbook
+      const orders = ordersAllPrices[orderPrice].orders;
+
+      for (const user in orders) {
+        if (orders[user] == availableAtBestPrice) {
+          // Add money to sellers account
+          INR_BALANCES[user].balance +=
+            availableAtBestPrice * Number(orderPrice);
+
+          STOCK_BALANCES[user][stockSymbol][stockType]!.locked -=
+            availableAtBestPrice;
+
+          // Deduct stocks from orderbook
+          orders[user] -= availableAtBestPrice;
+
+          availableAtBestPrice = 0;
+          break;
+        } else {
+          // Add money to sellers account
+          INR_BALANCES[user].balance += orders[user] * Number(orderPrice);
+          STOCK_BALANCES[user][stockSymbol][stockType]!.locked -= orders[user];
+          // Deduct stocks from orderbook
+          availableAtBestPrice -= orders[user];
+          orders[user] = 0;
+        }
+      }
+    }
+  }
+
+  res.status(200).send({
+    message: `Buy order placed and trade executed`,
+  });
 };
 
 // Sell Order
@@ -125,13 +193,12 @@ export const sellOrder = (req: Request, res: Response) => {
   const lockedStocksOfUser = Number(stockAvailable[stockType]?.locked) || 0; // Quantity of Locked stocks
 
   if (quantity > stockBalanceOfUser) {
-    res.send({ message: "Insufficient Stocks" });
+    res.status(400).send({ message: "Insufficient stock balance" });
     return;
   }
 
-  const priceInRupee = price / 100;
   const prevQuantityInOrderBook =
-    Number(ORDERBOOK[stockSymbol][stockType]?.[priceInRupee]?.total) || 0;
+    Number(ORDERBOOK[stockSymbol][stockType]?.[price]?.total) || 0;
 
   // Subtracting from user stock quantity and adding to locked stocks
   stockAvailable[stockType] = {
@@ -147,18 +214,40 @@ export const sellOrder = (req: Request, res: Response) => {
         [userId]: quantity,
       },
     };
-    ORDERBOOK[stockSymbol][stockType][priceInRupee] = orderData;
+    ORDERBOOK[stockSymbol][stockType][price] = orderData;
   } else {
-    ORDERBOOK[stockSymbol][stockType][priceInRupee].total =
+    ORDERBOOK[stockSymbol][stockType][price].total =
       prevQuantityInOrderBook + quantity;
 
     const prevUserStockCount =
-      Number(ORDERBOOK[stockSymbol][stockType][priceInRupee].orders[userId]) ||
-      0;
+      Number(ORDERBOOK[stockSymbol][stockType][price].orders[userId]) || 0;
 
-    ORDERBOOK[stockSymbol][stockType][priceInRupee].orders[userId] =
+    ORDERBOOK[stockSymbol][stockType][price].orders[userId] =
       prevUserStockCount + quantity;
   }
 
-  res.send({ message: "Order placed successfully" });
+  res.status(200).send({
+    message: `Sell order placed for ${quantity} '${stockType}' options at price ${price}.`,
+  });
+};
+
+// Cancel Order
+export const cancelOrder = (req: Request, res: Response) => {
+  const { userId, stockSymbol, stockType } = req.body;
+  const quantity = req.body.quantity;
+  const price = req.body.price;
+
+  const userExists = INR_BALANCES[userId];
+  const symbolExists = ORDERBOOK[stockSymbol];
+
+  if (!userExists) {
+    res.send({ error: `User with user Id ${userId} does not exist` });
+    return;
+  }
+  if (!symbolExists) {
+    res.send({ error: `Stock with stockSymbol ${stockSymbol} does not exist` });
+    return;
+  }
+
+  res.send({ message: "Sell order canceled" });
 };

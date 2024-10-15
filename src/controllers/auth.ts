@@ -18,5 +18,5 @@ export const createUser = (req: Request, res: Response) => {
 
   INR_BALANCES[userId] = { balance: 0, locked: 0 };
   STOCK_BALANCES[userId] = {};
-  res.send({ message: "User created Successfully" });
+  res.status(201).send({ message: `User ${userId} created` });
 };

@@ -7,10 +7,8 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 app.use(express.json());
-app.use("/api/v1", router);
+app.use("/", router);
 
-app.listen(PORT, () => {
-  console.log(`Server is listening at port ${PORT}`);
-});
+app.listen(PORT);
 
 export default app;

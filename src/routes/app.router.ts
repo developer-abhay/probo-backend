@@ -10,6 +10,7 @@ import {
 } from "../controllers/balance";
 import {
   buyOrder,
+  cancelOrder,
   getOrderBook,
   sellOrder,
   viewOrders,
@@ -22,9 +23,9 @@ router.post("/user/create/:userId", createUser);
 router.post("/symbol/create/:stockSymbol", createSymbol);
 
 // Get Info
-router.get("/balance/inr", getInrBalances);
+router.get("/balances/inr", getInrBalances);
 router.get("/balance/inr/:userId", getInrBalanceByUserId);
-router.get("/balance/stock", getStockBalances);
+router.get("/balances/stock", getStockBalances);
 router.get("/balance/stock/:userId", getStockBalancebyUserId);
 router.post("/onramp/inr", onRamp);
 
@@ -33,6 +34,7 @@ router.get("/orderbook", getOrderBook);
 router.get("/orderbook/:stockSymbol", viewOrders);
 router.post("/order/buy", buyOrder);
 router.post("/order/sell", sellOrder);
+router.post("/order/cancel", cancelOrder);
 
 // Minting
 router.post("/trade/mint", mintToken);

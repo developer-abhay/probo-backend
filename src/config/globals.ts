@@ -4,54 +4,49 @@ import {
   STOCK_BALANCES_TYPE,
 } from "../interfaces/globals";
 
-export const INR_BALANCES: INR_BALANCES_TYPE = {};
+export const INR_BALANCES: INR_BALANCES_TYPE = {
+  user2: {
+    balance: 1000000,
+    locked: 0,
+  },
+  user1: {
+    balance: 0,
+    locked: 0,
+  },
+};
 
 export const STOCK_BALANCES: STOCK_BALANCES_TYPE = {
-  1: {
-    BTC_USDT_10_Oct_2024_9_30: {
-      no: {
-        quantity: 3,
-        locked: 4,
+  user2: {},
+  user1: {
+    ETH_USD_15_Oct_2024_12_00: {
+      yes: {
+        quantity: 943,
+        locked: 57,
       },
-    },
-  },
-  2: {
-    BTC_USDT_10_Oct_2024_9_30: {
       no: {
-        quantity: 3,
-        locked: 4,
+        quantity: 1000,
+        locked: 0,
       },
     },
   },
 };
 
 export let ORDERBOOK: ORDER_BOOK_TYPE = {
-  BTC_USDT_10_Oct_2024_9_30: {
+  ETH_USD_15_Oct_2024_12_00: {
     yes: {
-      "9.5": {
+      "140": {
         total: 20,
         orders: {
-          user1: 10,
-          user2: 10,
+          user1: 20,
         },
       },
-      "8.5": {
-        total: 12,
+      "150": {
+        total: 20,
         orders: {
-          user1: 3,
-          user2: 3,
-          user3: 6,
+          user1: 20,
         },
       },
     },
-    no: {
-      "4.5": {
-        total: 20,
-        orders: {
-          user1: 10,
-          user2: 10,
-        },
-      },
-    },
+    no: {},
   },
 };
