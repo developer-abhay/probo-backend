@@ -19,8 +19,8 @@ export const createSymbol = (req: Request, res: Response) => {
   }
 
   ORDERBOOK[stockSymbol] = {
-    yes: {},
-    no: {},
+    yes: [],
+    no: [],
   };
 
   res.status(201).send({ message: `Symbol ${stockSymbol} created` });
@@ -28,9 +28,14 @@ export const createSymbol = (req: Request, res: Response) => {
 
 // Mint New Stocks of a given symbol
 export const mintToken = (req: Request, res: Response) => {
-  const { userId, stockSymbol }: MINT_REQUEST = req.body;
+  const { userId, stockSymbol } = req.body as MINT_REQUEST;
   const quantity = Number(req.body.quantity);
-  const price = Number(req.body.price);
+  const price = Number(req.body.price) || 10;
+
+  if (!userId || !stockSymbol || !quantity || !price) {
+    res.send({ error: `Invalid Input` });
+    return;
+  }
 
   const userExists = INR_BALANCES[userId];
   const symbolExists = ORDERBOOK[stockSymbol];
@@ -44,9 +49,8 @@ export const mintToken = (req: Request, res: Response) => {
     return;
   }
 
-  const requiredBalance = quantity * price; // 2 * price in paise per stock pair (yes and no)
-  // const requiredBalance = quantity * price; // price in paise per stock pair (yes and no)
-  const userBalance = INR_BALANCES[userId].balance;
+  const requiredBalance = quantity * price;
+  const userBalance = INR_BALANCES[userId].balance / 100;
 
   if (requiredBalance > userBalance) {
     res.send({ message: "Insufficient INR Balance" });
@@ -82,13 +86,14 @@ export const mintToken = (req: Request, res: Response) => {
   }
 
   const remainingBalance = userBalance - requiredBalance;
-  INR_BALANCES[userId].balance = remainingBalance;
+  INR_BALANCES[userId].balance = remainingBalance * 100;
 
   res.status(200).send({
     message: `Minted ${quantity} 'yes' and 'no' tokens for user ${userId}, remaining balance is ${remainingBalance}`,
   });
 };
 
+// Reset all in memory schemas
 export const reset = (req: Request, res: Response) => {
   for (let prop in ORDERBOOK) {
     delete ORDERBOOK[prop];

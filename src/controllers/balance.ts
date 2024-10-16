@@ -42,7 +42,7 @@ export const getStockBalancebyUserId = (req: Request, res: Response) => {
     return;
   }
 
-  res.send({ data: STOCK_BALANCES[userId] });
+  res.send(STOCK_BALANCES[userId]);
 
   // const stockArray = STOCK_BALANCES[userId];
   // const stockArrayKeys = Object.keys(stockArray);

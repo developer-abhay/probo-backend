@@ -22,11 +22,11 @@ const router = express.Router();
 router.post("/user/create/:userId", createUser);
 router.post("/symbol/create/:stockSymbol", createSymbol);
 
-// Get Info
+// Balances
 router.get("/balances/inr", getInrBalances);
-router.get("/balance/inr/:userId", getInrBalanceByUserId);
+router.get("/balances/inr/:userId", getInrBalanceByUserId);
 router.get("/balances/stock", getStockBalances);
-router.get("/balance/stock/:userId", getStockBalancebyUserId);
+router.get("/balances/stock/:userId", getStockBalancebyUserId);
 router.post("/onramp/inr", onRamp);
 
 // Orders
