@@ -50,7 +50,7 @@ export type ORDERDATA = {
     [userId: string]: {
       id: number;
       quantity: number;
-      type: string;
+      type: "buy" | "exit";
     }[];
   };
 };
