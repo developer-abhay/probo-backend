@@ -1,7 +1,8 @@
 import { Request, Response } from "express";
 import { INR_BALANCES, ORDERBOOK, STOCK_BALANCES } from "../config/globals";
 import { ORDER_REQUEST } from "../interfaces/requestModels";
-import { priceRange } from "../interfaces/globals";
+import { Order, ORDERDATA, priceRange } from "../interfaces/globals";
+import { subscribe_clients } from "../config/clientData";
 
 // Get order book
 export const getOrderBook = (req: Request, res: Response) => {
@@ -24,7 +25,7 @@ export const viewOrders = (req: Request, res: Response) => {
 export const buyOrder = (req: Request, res: Response) => {
   const { userId, stockSymbol } = req.body as ORDER_REQUEST;
   const quantity = Number(req.body.quantity);
-  const price = Number(req.body.price);
+  const price: priceRange = Number(req.body.price) as priceRange;
   const stockType = req.body.stockType as "yes" | "no";
 
   const userExists = INR_BALANCES[userId];
@@ -71,23 +72,18 @@ export const buyOrder = (req: Request, res: Response) => {
   // loop over yes/no orders -> one price at a time
   for (const buyOrder in buyOrderArray) {
     const orderPrice = Number(buyOrderArray[buyOrder].price) as priceRange;
-    const orderObject = buyOrderArray[buyOrder].orders;
 
-    // loop over all users in orders -> one user at a time
-    for (const sellerId in orderObject) {
-      requiredQuantity = matchOrder(
-        stockSymbol,
-        stockType,
-        orderPrice,
-        requiredQuantity,
-        orderObject[sellerId],
-        userId,
-        sellerId
-      );
-      if (requiredQuantity == 0) {
-        break;
-      }
-    }
+    // for (const makerId in orderObject) {
+    requiredQuantity = matchOrder(
+      stockSymbol,
+      stockType,
+      orderPrice,
+      requiredQuantity,
+      buyOrderArray[buyOrder],
+      userId,
+      "buy"
+    );
+    // }
 
     if (requiredQuantity == 0) {
       break;
@@ -110,31 +106,6 @@ export const buyOrder = (req: Request, res: Response) => {
       );
       break;
     }
-
-    // Inititate a partial pseudo sell order for remaining quantities
-    if (availableQuantity == 0) {
-      initiateSellOrder(
-        stockSymbol,
-        stockType,
-        price,
-        requiredQuantity,
-        userId,
-        "buy"
-      );
-      break;
-    }
-
-    //       INR_BALANCES[user].balance += requiredQuantity * Number(orderPrice);
-    //       INR_BALANCES[user].balance += orders[user] * price;
-    //       INR_BALANCES[userId].balance -= availableAtBestPrice * Number(orderPrice); // all stocks of best price (less than required)
-
-    //       STOCK_BALANCES[user][stockSymbol][stockType]!.locked -=
-    //       STOCK_BALANCES[user][stockSymbol][stockType]!.locked -= orders[user];
-
-    //       ordersAllPrices[orderPrice].total = 0;
-    //       orders[user] -= requiredQuantity;
-    //       requiredQuantity -= orders[user];
-    //       orders[user] = 0;
   }
 
   res.status(200).send({
@@ -144,58 +115,99 @@ export const buyOrder = (req: Request, res: Response) => {
 
 // Sell Order
 export const sellOrder = (req: Request, res: Response) => {
-  // const { userId, stockSymbol } = req.body as ORDER_REQUEST;
-  // const quantity = Number(req.body.quantity);
-  // const price = Number(req.body.price);
-  // const stockType = req.body.stockType as "yes" | "no";
-  // const userExists = INR_BALANCES[userId];
-  // const symbolExists = ORDERBOOK[stockSymbol];
-  // if (!userExists) {
-  //   res.send({ error: `User with user Id ${userId} does not exist` });
-  //   return;
-  // }
-  // if (!symbolExists) {
-  //   res.send({ error: `Stock with stockSymbol ${stockSymbol} does not exist` });
-  //   return;
-  // }
-  // const stockAvailable = STOCK_BALANCES[userId][stockSymbol]; // Does user have this stock.
-  // if (!stockAvailable) {
-  //   res.send({ message: `You do not own any stock of ${stockSymbol}` });
-  //   return;
-  // }
-  // const stockBalanceOfUser = Number(stockAvailable[stockType]?.quantity) || 0; // Quantity of stocks user own
-  // const lockedStocksOfUser = Number(stockAvailable[stockType]?.locked) || 0; // Quantity of Locked stocks
-  // if (quantity > stockBalanceOfUser) {
-  //   res.status(400).send({ message: "Insufficient stock balance" });
-  //   return;
-  // }
-  // const prevQuantityInOrderBook =
-  //   Number(ORDERBOOK[stockSymbol][stockType]?.[price]?.total) || 0;
-  // // Subtracting from user stock quantity and adding to locked stocks
-  // stockAvailable[stockType] = {
-  //   quantity: stockBalanceOfUser - quantity,
-  //   locked: lockedStocksOfUser + quantity,
-  // };
-  // // Adding to order book
-  // if (prevQuantityInOrderBook === 0) {
-  //   const orderData = {
-  //     total: quantity,
-  //     orders: {
-  //       [userId]: quantity,
-  //     },
-  //   };
-  //   ORDERBOOK[stockSymbol][stockType][price] = orderData;
-  // } else {
-  //   ORDERBOOK[stockSymbol][stockType][price].total =
-  //     prevQuantityInOrderBook + quantity;
-  //   const prevUserStockCount =
-  //     Number(ORDERBOOK[stockSymbol][stockType][price].orders[userId]) || 0;
-  //   ORDERBOOK[stockSymbol][stockType][price].orders[userId] =
-  //     prevUserStockCount + quantity;
-  // }
-  // res.status(200).send({
-  //   message: `Sell order placed for ${quantity} '${stockType}' options at price ${price}.`,
-  // });
+  const { userId, stockSymbol } = req.body as ORDER_REQUEST;
+  const quantity = Number(req.body.quantity);
+  const price = Number(req.body.price) as priceRange;
+  const stockType = req.body.stockType as "yes" | "no";
+
+  const userExists = INR_BALANCES[userId];
+  const symbolExists = ORDERBOOK[stockSymbol];
+
+  if (!userExists) {
+    res.send({ error: `User with user Id ${userId} does not exist` });
+    return;
+  }
+  if (!symbolExists) {
+    res.send({ error: `Stock with stockSymbol ${stockSymbol} does not exist` });
+    return;
+  }
+
+  const stockAvailable = STOCK_BALANCES[userId][stockSymbol]; // Does user have this stock.
+  if (!stockAvailable) {
+    res.send({ message: `You do not own any stock of ${stockSymbol}` });
+    return;
+  }
+
+  const stockBalanceOfUser = Number(stockAvailable[stockType]?.quantity) || 0; // Quantity of stocks user own
+
+  if (quantity > stockBalanceOfUser) {
+    res.status(400).send({ message: "Insufficient stock balance" });
+    return;
+  }
+
+  // Checking for any buy orders (pseudo sell in opposite stock type)
+  let pseudoType: "yes" | "no" = "yes";
+  let pseudoPrice: priceRange = Number(10 - price) as priceRange;
+  if (stockType == "yes") {
+    pseudoType = "no";
+  }
+
+  const sellOrderObject = ORDERBOOK[stockSymbol][pseudoType].find(
+    (item) => item.price == pseudoPrice
+  );
+
+  let totalAvailableQuantity: number = 0;
+
+  if (sellOrderObject) {
+    totalAvailableQuantity = sellOrderObject.orders.reduce((acc, item) => {
+      if (item.type == "buy") {
+        return (acc += item.quantity);
+      } else {
+        return acc;
+      }
+    }, 0);
+  }
+
+  if (totalAvailableQuantity == 0) {
+    initiateSellOrder(stockSymbol, stockType, price, quantity, userId, "exit");
+
+    res.send({
+      message: `Sell order placed for ${quantity} '${stockType}' options at price ${price}.`,
+    });
+    return;
+  }
+
+  // Matching Sell Orders with Buy orders (pseudo Sell)
+  let requiredQuantity = quantity;
+
+  if (totalAvailableQuantity >= quantity) {
+    requiredQuantity = matchOrder(
+      stockSymbol,
+      stockType,
+      price,
+      requiredQuantity,
+      sellOrderObject!,
+      userId,
+      "sell"
+    );
+    res.status(200).send({ message: "Sell order filled completely" });
+    return;
+  }
+
+  // Sell Order with partial Matching
+  requiredQuantity = matchOrder(
+    stockSymbol,
+    stockType,
+    price,
+    requiredQuantity,
+    sellOrderObject!,
+    userId,
+    "sell"
+  );
+  res
+    .status(200)
+    .send({ message: "Sell order partially filled and rest are initiated" });
+  return;
 };
 
 // Cancel Order
@@ -219,88 +231,151 @@ export const cancelOrder = (req: Request, res: Response) => {
   res.send({ message: "Sell order canceled" });
 };
 
+// Create a Sell order (Either exit or buy(pseudo sell))
 const initiateSellOrder = (
   stockSymbol: string,
-  stockType: string,
-  price: number,
+  stockType: "yes" | "no",
+  price: priceRange,
   quantity: number,
   userId: string,
   orderType: "buy" | "exit"
 ) => {
-  let newPrice = (10 - price) as priceRange;
-  let newType: "yes" | "no" = "yes";
+  let newPrice: priceRange =
+    orderType == "buy" ? ((10 - price) as priceRange) : price;
+  let newType: "yes" | "no" =
+    orderType == "buy" ? (stockType == "yes" ? "no" : "yes") : stockType;
 
-  if (stockType == "yes") {
-    newType = "no";
+  // pseudo order -> Lock inr balance of the user (in paise)
+  if (orderType == "buy") {
+    INR_BALANCES[userId].balance -= quantity * newPrice * 100;
+    INR_BALANCES[userId].locked += quantity * newPrice * 100;
+  }
+
+  // actual sell order -> Lock stock balance of user
+  if (orderType == "exit") {
+    STOCK_BALANCES[userId][stockSymbol][newType]!.quantity -= quantity;
+    STOCK_BALANCES[userId][stockSymbol][newType]!.locked += quantity;
   }
 
   const sellOrderArray = ORDERBOOK[stockSymbol][newType];
   const sellOrder = sellOrderArray.find((item) => item.price == newPrice);
 
+  // Add order to orderbook
   if (sellOrder) {
     sellOrder.total += quantity;
-    if (sellOrder.orders[userId]) {
-      sellOrder.orders[userId].push({ id: 15, quantity, type: orderType });
-    } else {
-      sellOrder.orders[userId] = [{ id: 15, quantity, type: orderType }];
-    }
+    sellOrder.orders.push({ userId, id: 15, quantity, type: orderType });
   } else {
     sellOrderArray.push({
       price: newPrice,
       total: quantity,
-      orders: {
-        [userId]: [{ id: 10, quantity, type: orderType }],
-      },
+      orders: [{ userId, id: 10, quantity, type: orderType }],
     });
   }
 };
 
+// Match Two orders Completely or partially
 const matchOrder = (
   stockSymbol: string,
-  stockType: string,
-  orderPrice: number,
+  stockType: "yes" | "no",
+  orderPrice: priceRange,
   requiredQuantity: number,
-  orders: { id: number; quantity: number; type: "buy" | "exit" }[],
-  buyerId: string,
-  sellerId: string
+  orderObject: ORDERDATA,
+  takerId: string,
+  takerType: "buy" | "sell"
 ) => {
+  const allOrders = orderObject.orders;
   let remainingQuantity = requiredQuantity;
 
-  // loop over all orders of a users
-  for (const order in orders) {
-    if (orders[order].quantity >= remainingQuantity) {
-      orders[order].quantity -= remainingQuantity;
+  // loop over all orders -> one at a time
+  for (const order in allOrders) {
+    if (allOrders[order].quantity >= remainingQuantity) {
+      // Update quantity in order book
+      allOrders[order].quantity -= remainingQuantity;
+      orderObject.total -= remainingQuantity;
+
+      // update Stocks and INR balances
+      updateBalances(
+        stockSymbol,
+        stockType,
+        orderPrice,
+        remainingQuantity,
+        takerId,
+        takerType,
+        allOrders[order].userId,
+        allOrders[order].type
+      );
+
+      // Order completely filled
       remainingQuantity = 0;
 
-      // Exchange Stocks and INR balances
-      // Update OrderBook
       return remainingQuantity;
     } else {
-      remainingQuantity -= orders[order].quantity;
-      orders[order].quantity = 0;
-      // Exchange Stocks and INR balances
-      // Update OrderBook
+      remainingQuantity -= allOrders[order].quantity;
+      orderObject.total -= allOrders[order].quantity;
+
+      // update Stocks and INR balances
+      updateBalances(
+        stockSymbol,
+        stockType,
+        orderPrice,
+        allOrders[order].quantity,
+        takerId,
+        takerType,
+        allOrders[order].userId,
+        allOrders[order].type
+      );
+
+      // Order partially filled
+      allOrders[order].quantity = 0;
     }
   }
-
   return remainingQuantity;
 };
 
-const swapInr = (sellerId: string, buyerId: string, price: number) => {};
-
-const swapStocks = (
-  sellId: string,
-  buyerId: string,
+// Update INR and stock balances after order matched
+const updateBalances = (
   stockSymbol: string,
-  stockType: string
-) => {};
+  stockType: "yes" | "no",
+  price: priceRange,
+  quantity: number,
+  takerId: string,
+  takerType: "buy" | "sell",
+  makerId: string,
+  makerType: "buy" | "exit"
+) => {
+  // Maker balance and stocks update
+  if (makerType == "buy") {
+    INR_BALANCES[makerId].locked -= quantity * price * 100;
 
-const mintStocks = (
-  stockSymbol: string,
-  user1: string,
-  type1: string,
-  price1: number,
-  user2: string,
-  type2: string,
-  price2: number
-) => {};
+    let makerStockType: "yes" | "no" =
+      takerType == "buy" ? (stockType == "yes" ? "no" : "yes") : stockType;
+
+    if (STOCK_BALANCES[makerId][stockSymbol]) {
+      STOCK_BALANCES[makerId][stockSymbol][makerStockType]!.quantity +=
+        quantity;
+    } else {
+      STOCK_BALANCES[makerId][stockSymbol] = {
+        [makerStockType]: { quantity: quantity, locked: 0 },
+      };
+    }
+  } else {
+    INR_BALANCES[makerId].balance += quantity * price * 100;
+    STOCK_BALANCES[makerId][stockSymbol][stockType]!.locked -= quantity;
+  }
+
+  // Taker balance and stock update
+  if (takerType == "buy") {
+    INR_BALANCES[takerId].balance -= quantity * price * 100;
+
+    if (STOCK_BALANCES[takerId][stockSymbol]) {
+      STOCK_BALANCES[takerId][stockSymbol][stockType]!.quantity += quantity;
+    } else {
+      STOCK_BALANCES[takerId][stockSymbol] = {
+        [stockType]: { quantity: quantity, locked: 0 },
+      };
+    }
+  } else {
+    INR_BALANCES[takerId].balance += quantity * price * 100;
+    STOCK_BALANCES[takerId][stockSymbol][stockType]!.quantity -= quantity;
+  }
+};

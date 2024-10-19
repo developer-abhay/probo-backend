@@ -21,7 +21,6 @@ export interface STOCK_BALANCES_TYPE {
 }
 
 export type priceRange =
-  | 0
   | 0.5
   | 1
   | 1.5
@@ -43,16 +42,17 @@ export type priceRange =
   | 9.5
   | 10;
 
+export type Order = {
+  userId: string;
+  id: number;
+  quantity: number;
+  type: "buy" | "exit";
+}[];
+
 export type ORDERDATA = {
   price: priceRange;
   total: number;
-  orders: {
-    [userId: string]: {
-      id: number;
-      quantity: number;
-      type: "buy" | "exit";
-    }[];
-  };
+  orders: Order;
 };
 
 export interface ORDER_BOOK_TYPE {
