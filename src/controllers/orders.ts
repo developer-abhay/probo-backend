@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
 import { INR_BALANCES, ORDERBOOK, STOCK_BALANCES } from "../config/globals";
 import { ORDER_REQUEST } from "../interfaces/requestModels";
-import { Order, ORDERDATA, priceRange } from "../interfaces/globals";
-import { subscribe_clients } from "../config/clientData";
+import { ORDERDATA, priceRange } from "../interfaces/globals";
+import { publishOrderbook } from "../services/Redis";
 
 // Get order book
 export const getOrderBook = (req: Request, res: Response) => {
@@ -73,7 +73,6 @@ export const buyOrder = (req: Request, res: Response) => {
   for (const buyOrder in buyOrderArray) {
     const orderPrice = Number(buyOrderArray[buyOrder].price) as priceRange;
 
-    // for (const makerId in orderObject) {
     requiredQuantity = matchOrder(
       stockSymbol,
       stockType,
@@ -83,7 +82,7 @@ export const buyOrder = (req: Request, res: Response) => {
       userId,
       "buy"
     );
-    // }
+    publishOrderbook(stockSymbol); // Publish to all subscribers
 
     if (requiredQuantity == 0) {
       break;
@@ -190,6 +189,7 @@ export const sellOrder = (req: Request, res: Response) => {
       userId,
       "sell"
     );
+    publishOrderbook(stockSymbol); // Publish to all subscribers
     res.status(200).send({ message: "Sell order filled completely" });
     return;
   }
@@ -204,6 +204,7 @@ export const sellOrder = (req: Request, res: Response) => {
     userId,
     "sell"
   );
+  publishOrderbook(stockSymbol); // Publish to all subscribers
   res
     .status(200)
     .send({ message: "Sell order partially filled and rest are initiated" });
@@ -271,6 +272,7 @@ const initiateSellOrder = (
       orders: [{ userId, id: 10, quantity, type: orderType }],
     });
   }
+  publishOrderbook(stockSymbol);
 };
 
 // Match Two orders Completely or partially
