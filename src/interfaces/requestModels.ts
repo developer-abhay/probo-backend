@@ -16,3 +16,20 @@ export interface MINT_REQUEST {
   stockSymbol: string;
   quantity: number;
 }
+
+export interface QUEUE_DATA_ELEMENT {
+  _id: string;
+  endpoint: string;
+  req: QUEUE_REQUEST;
+}
+
+export interface QUEUE_REQUEST {
+  body: {
+    userId?: string;
+    amount?: number;
+    stockSymbol?: string;
+    quantity?: number;
+    price?: number;
+  };
+  params: { userId?: string; stockSymbol?: string };
+}

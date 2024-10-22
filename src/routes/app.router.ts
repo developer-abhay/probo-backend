@@ -1,6 +1,10 @@
 import express from "express";
-import { createSymbol, mintToken, reset } from "../controllers/minting";
-import { createUser } from "../controllers/auth";
+import {
+  createUser,
+  createSymbol,
+  mintToken,
+  reset,
+} from "../controllers/auth";
 import {
   getInrBalanceByUserId,
   getInrBalances,
@@ -15,12 +19,41 @@ import {
   sellOrder,
   viewOrders,
 } from "../controllers/orders";
+import { QUEUE_DATA_ELEMENT } from "../interfaces/requestModels";
+import { publisher } from "../services/redis";
+
+// Match all endpoints
+export const matchEndpoint = (data: QUEUE_DATA_ELEMENT) => {
+  let response;
+  switch (data.endpoint) {
+    // 1.
+    case "/user/create/:userId":
+      response = createUser(data.req);
+      break;
+    // 2.
+    case "/symbol/create/:stockSymbol":
+      response = createSymbol(data.req);
+      break;
+    // 3.
+    case "/trade/mint":
+      response = mintToken(data.req);
+      break;
+    // 4.
+    case "/reset":
+      response = reset(data.req);
+      break;
+  }
+
+  publisher.publish(data._id, JSON.stringify(response));
+};
 
 const router = express.Router();
 
 // Create user and Symbol
-router.post("/user/create/:userId", createUser);
-router.post("/symbol/create/:stockSymbol", createSymbol);
+// router.post("/user/create/:userId", createUser);
+// router.post("/symbol/create/:stockSymbol", createSymbol);
+// router.post("/trade/mint", mintToken);
+// router.post("/reset", reset);
 
 // Balances
 router.get("/balances/inr", getInrBalances);
@@ -35,11 +68,5 @@ router.get("/orderbook/:stockSymbol", viewOrders);
 router.post("/order/buy", buyOrder);
 router.post("/order/sell", sellOrder);
 router.post("/order/cancel", cancelOrder);
-
-// Minting
-router.post("/trade/mint", mintToken);
-
-// Reset
-router.post("/reset", reset);
 
 export default router;

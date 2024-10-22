@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { INR_BALANCES, ORDERBOOK, STOCK_BALANCES } from "../config/globals";
 import { ORDER_REQUEST } from "../interfaces/requestModels";
 import { ORDERDATA, priceRange } from "../interfaces/globals";
-import { publishOrderbook } from "../services/Redis";
+import { publishOrderbook } from "../services/redis";
 
 // Get order book
 export const getOrderBook = (req: Request, res: Response) => {
@@ -353,8 +353,15 @@ const updateBalances = (
       takerType == "buy" ? (stockType == "yes" ? "no" : "yes") : stockType;
 
     if (STOCK_BALANCES[makerId][stockSymbol]) {
-      STOCK_BALANCES[makerId][stockSymbol][makerStockType]!.quantity +=
-        quantity;
+      if (STOCK_BALANCES[makerId][stockSymbol][makerStockType]) {
+        STOCK_BALANCES[makerId][stockSymbol][makerStockType].quantity +=
+          quantity;
+      } else {
+        STOCK_BALANCES[makerId][stockSymbol][makerStockType] = {
+          quantity: quantity,
+          locked: 0,
+        };
+      }
     } else {
       STOCK_BALANCES[makerId][stockSymbol] = {
         [makerStockType]: { quantity: quantity, locked: 0 },

@@ -1,19 +1,39 @@
-import { Request, Response } from "express";
 import { createClient } from "redis";
 import { ORDERBOOK } from "../config/globals";
-import { getOrderBook } from "../controllers/orders";
-// Publisher
-const publisher = createClient();
+import { queueName } from "../config/constants";
+import { matchEndpoint } from "../routes/app.router";
+
+// Publisher for pub sub
+export const publisher = createClient();
+// Queue consumer
+const consumer = createClient();
 
 export const connectToRedis = async () => {
   try {
     await publisher.connect();
+    await consumer.connect();
+
+    // Pulling from the queue
+    pullFromQueue(queueName);
     console.log("Connected to Redis");
   } catch (error) {
     console.error("Failed to connect to REdis");
   }
 };
 
+// Pulling from the queue
+export const pullFromQueue = async (queueName: string) => {
+  while (true) {
+    const payload = await consumer.brPop(queueName, 0);
+
+    if (payload) {
+      const data = JSON.parse(payload.element);
+      matchEndpoint(data);
+    }
+  }
+};
+
+// Publish orderbook on the pubsub
 export const publishOrderbook = async (eventId: string) => {
   try {
     if (ORDERBOOK[eventId]) {
