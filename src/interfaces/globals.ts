@@ -44,17 +44,19 @@ export type priceRange =
 
 export type Order = {
   userId: string;
-  id: number;
+  id: string;
   quantity: number;
   type: "buy" | "exit";
 }[];
 
 export type ORDERDATA = {
-  price: priceRange;
   total: number;
   orders: Order;
 };
 
 export interface ORDER_BOOK_TYPE {
-  [stockSymbol: string]: { yes: ORDERDATA[]; no: ORDERDATA[] };
+  [stockSymbol: string]: {
+    yes: Map<priceRange, ORDERDATA>;
+    no: Map<priceRange, ORDERDATA>;
+  };
 }

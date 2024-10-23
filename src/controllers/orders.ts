@@ -2,10 +2,19 @@ import { INR_BALANCES, ORDERBOOK, STOCK_BALANCES } from "../config/globals";
 import { ORDER_REQUEST, QUEUE_REQUEST } from "../interfaces/requestModels";
 import { ORDERDATA, priceRange } from "../interfaces/globals";
 import { publishOrderbook } from "../services/redis";
+import { v4 as uuidv4 } from "uuid";
 
 // Get order book
 export const getOrderBook = (req: QUEUE_REQUEST) => {
-  return { statusCode: 200, data: ORDERBOOK };
+  const formattedOrderbook = Object.fromEntries(
+    Object.entries(ORDERBOOK).map(([key, object]) => {
+      const yes = Object.fromEntries(Array.from(object.yes));
+      const no = Object.fromEntries(Array.from(object.no));
+      return [key, { yes, no }];
+    })
+  );
+
+  return { statusCode: 200, data: formattedOrderbook };
 };
 
 // View Buy and Sell Orders
@@ -53,9 +62,22 @@ export const buyOrder = (req: QUEUE_REQUEST) => {
   }
 
   // Sort and Filter the orderbook for less than or equal to price
-  const buyOrderArray = ORDERBOOK[stockSymbol][stockType]
-    .sort((a, b) => a.price - b.price)
-    .filter((item) => item.price <= price && item.total != 0);
+  // const filteredByPrice = ORDERBOOK[stockSymbol][stockType]
+  //   .sort((a, b) => a.price - b.price)
+  //   .filter((item) => item.price <= price && item.total != 0);
+  const filteredByPrice = new Map(
+    Array.from(ORDERBOOK[stockSymbol][stockType]).filter(
+      ([key, value]) => key <= price && value.total != 0
+    )
+  );
+
+  const buyOrderArray = Array.from(filteredByPrice).map(([price, item]) => {
+    const orders = item.orders.filter((order) => order.userId !== userId);
+    const total = orders.reduce((acc, value) => {
+      return acc + value.quantity;
+    }, 0);
+    return { price, total, orders };
+  });
 
   // Check for total available quantity of all stocks that can match
   let availableQuantity = buyOrderArray.reduce(
@@ -162,9 +184,10 @@ export const sellOrder = (req: QUEUE_REQUEST) => {
     pseudoType = "no";
   }
 
-  const sellOrderObject = ORDERBOOK[stockSymbol][pseudoType].find(
-    (item) => item.price == pseudoPrice
-  );
+  // const sellOrderObject = ORDERBOOK[stockSymbol][pseudoType].find(
+  // (item) => item.price == pseudoPrice
+  // );
+  const sellOrderObject = ORDERBOOK[stockSymbol][pseudoType].get(pseudoPrice);
 
   let totalAvailableQuantity: number = 0;
 
@@ -268,8 +291,8 @@ const initiateSellOrder = (
 
   // pseudo order -> Lock inr balance of the user (in paise)
   if (orderType == "buy") {
-    INR_BALANCES[userId].balance -= quantity * newPrice * 100;
-    INR_BALANCES[userId].locked += quantity * newPrice * 100;
+    INR_BALANCES[userId].balance -= quantity * price * 100;
+    INR_BALANCES[userId].locked += quantity * price * 100;
   }
 
   // actual sell order -> Lock stock balance of user
@@ -279,17 +302,16 @@ const initiateSellOrder = (
   }
 
   const sellOrderArray = ORDERBOOK[stockSymbol][newType];
-  const sellOrder = sellOrderArray.find((item) => item.price == newPrice);
+  const sellOrder = sellOrderArray.get(newPrice);
 
   // Add order to orderbook
   if (sellOrder) {
     sellOrder.total += quantity;
-    sellOrder.orders.push({ userId, id: 15, quantity, type: orderType });
+    sellOrder.orders.push({ userId, id: uuidv4(), quantity, type: orderType });
   } else {
-    sellOrderArray.push({
-      price: newPrice,
+    sellOrderArray.set(newPrice, {
       total: quantity,
-      orders: [{ userId, id: 10, quantity, type: orderType }],
+      orders: [{ userId, id: uuidv4(), quantity, type: orderType }],
     });
   }
   publishOrderbook(stockSymbol);
@@ -309,46 +331,51 @@ const matchOrder = (
   let remainingQuantity = requiredQuantity;
 
   // loop over all orders -> one at a time
+
   for (const order in allOrders) {
-    if (allOrders[order].quantity >= remainingQuantity) {
-      // Update quantity in order book
-      allOrders[order].quantity -= remainingQuantity;
-      orderObject.total -= remainingQuantity;
+    // Not match orders of the same user
+    if (!(allOrders[order].userId == takerId)) {
+      if (allOrders[order].quantity >= remainingQuantity) {
+        // Update quantity in order book
 
-      // update Stocks and INR balances
-      updateBalances(
-        stockSymbol,
-        stockType,
-        orderPrice,
-        remainingQuantity,
-        takerId,
-        takerType,
-        allOrders[order].userId,
-        allOrders[order].type
-      );
+        allOrders[order].quantity -= remainingQuantity;
+        orderObject.total -= remainingQuantity;
 
-      // Order completely filled
-      remainingQuantity = 0;
+        // update Stocks and INR balances
+        updateBalances(
+          stockSymbol,
+          stockType,
+          orderPrice,
+          remainingQuantity,
+          takerId,
+          takerType,
+          allOrders[order].userId,
+          allOrders[order].type
+        );
 
-      return remainingQuantity;
-    } else {
-      remainingQuantity -= allOrders[order].quantity;
-      orderObject.total -= allOrders[order].quantity;
+        // Order completely filled
+        remainingQuantity = 0;
 
-      // update Stocks and INR balances
-      updateBalances(
-        stockSymbol,
-        stockType,
-        orderPrice,
-        allOrders[order].quantity,
-        takerId,
-        takerType,
-        allOrders[order].userId,
-        allOrders[order].type
-      );
+        return remainingQuantity;
+      } else {
+        remainingQuantity -= allOrders[order].quantity;
+        orderObject.total -= allOrders[order].quantity;
 
-      // Order partially filled
-      allOrders[order].quantity = 0;
+        // update Stocks and INR balances
+        updateBalances(
+          stockSymbol,
+          stockType,
+          orderPrice,
+          allOrders[order].quantity,
+          takerId,
+          takerType,
+          allOrders[order].userId,
+          allOrders[order].type
+        );
+
+        // Order partially filled
+        allOrders[order].quantity = 0;
+      }
     }
   }
   return remainingQuantity;
@@ -397,6 +424,7 @@ const updateBalances = (
     INR_BALANCES[takerId].balance -= quantity * price * 100;
 
     if (STOCK_BALANCES[takerId][stockSymbol]) {
+      console.log(STOCK_BALANCES);
       STOCK_BALANCES[takerId][stockSymbol][stockType]!.quantity += quantity;
     } else {
       STOCK_BALANCES[takerId][stockSymbol] = {

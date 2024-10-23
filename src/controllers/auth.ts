@@ -34,8 +34,8 @@ export const createSymbol = (req: QUEUE_REQUEST) => {
   }
 
   ORDERBOOK[stockSymbol] = {
-    yes: [],
-    no: [],
+    yes: new Map(),
+    no: new Map(),
   };
 
   return {

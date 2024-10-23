@@ -52,15 +52,14 @@ const getOrderBookByEvent = (eventId: string) => {
   let orderbook;
   const symbolExists = ORDERBOOK[eventId];
 
+  // Converting the orderbook of a particular symbol into the desired structure
   if (symbolExists) {
     orderbook = Object.fromEntries(
-      Object.entries(symbolExists).map(([type, orders]) => {
-        return [
-          type,
-          orders.map((item) => {
-            return { price: item.price, quantity: item.total };
-          }),
-        ];
+      Object.entries(symbolExists).map(([type, ordersMap]) => {
+        const orders = Array.from(ordersMap).map(([price, orders]) => {
+          return { price, quantity: orders.total };
+        });
+        return [[type], orders];
       })
     );
   } else {
