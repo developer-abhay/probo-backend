@@ -107,7 +107,17 @@ export const buyOrder = (req: QUEUE_REQUEST) => {
       userId,
       "buy"
     );
-    publishOrderbook(stockSymbol); // Publish to all subscribers
+
+    // If total quantity at a price is zero delete it from the order book
+    if (
+      ORDERBOOK[stockSymbol][stockType].get(orderPrice) &&
+      ORDERBOOK[stockSymbol][stockType].get(orderPrice)!.total == 0
+    ) {
+      ORDERBOOK[stockSymbol][stockType].delete(orderPrice);
+    }
+
+    // Publish to all subscribers
+    publishOrderbook(stockSymbol);
 
     if (requiredQuantity == 0) {
       break;
@@ -117,7 +127,7 @@ export const buyOrder = (req: QUEUE_REQUEST) => {
       (acc, item) => acc + item.total,
       0
     );
-
+    console.log();
     // Inititate a partial pseudo sell order for remaining quantities
     if (availableQuantity == 0) {
       initiateSellOrder(
@@ -213,14 +223,14 @@ export const sellOrder = (req: QUEUE_REQUEST) => {
   }
 
   // Matching Sell Orders with Buy orders (pseudo Sell)
-  let requiredQuantity = quantity;
+  let sellingQuantity = quantity;
 
   if (totalAvailableQuantity >= quantity) {
-    requiredQuantity = matchOrder(
+    sellingQuantity = matchOrder(
       stockSymbol,
       stockType,
       price,
-      requiredQuantity,
+      sellingQuantity,
       sellOrderObject!,
       userId,
       "sell"
@@ -233,11 +243,11 @@ export const sellOrder = (req: QUEUE_REQUEST) => {
   }
 
   // Sell Order with partial Matching
-  requiredQuantity = matchOrder(
+  sellingQuantity = matchOrder(
     stockSymbol,
     stockType,
     price,
-    requiredQuantity,
+    sellingQuantity,
     sellOrderObject!,
     userId,
     "sell"
@@ -330,52 +340,69 @@ const matchOrder = (
   const allOrders = orderObject.orders;
   let remainingQuantity = requiredQuantity;
 
+  // Pseudo Order details
+  let pseudoType: "yes" | "no" = "yes";
+  let pseudoPrice: priceRange = Number(10 - orderPrice) as priceRange;
+  if (stockType == "yes") {
+    pseudoType = "no";
+  }
+
   // loop over all orders -> one at a time
-
   for (const order in allOrders) {
-    // Not match orders of the same user
-    if (!(allOrders[order].userId == takerId)) {
-      if (allOrders[order].quantity >= remainingQuantity) {
-        // Update quantity in order book
+    if (allOrders[order].quantity > remainingQuantity) {
+      // Update quantity in order book
 
-        allOrders[order].quantity -= remainingQuantity;
-        orderObject.total -= remainingQuantity;
+      allOrders[order].quantity -= remainingQuantity;
+      orderObject.total -= remainingQuantity; // For maintaining available balance in buy order function
 
-        // update Stocks and INR balances
-        updateBalances(
-          stockSymbol,
-          stockType,
-          orderPrice,
-          remainingQuantity,
-          takerId,
-          takerType,
-          allOrders[order].userId,
-          allOrders[order].type
-        );
-
-        // Order completely filled
-        remainingQuantity = 0;
-
-        return remainingQuantity;
+      // Deduct order from the orderbook depending on taker type
+      if (takerType == "sell") {
+        ORDERBOOK[stockSymbol][pseudoType].get(orderPrice)!.total -=
+          remainingQuantity;
       } else {
-        remainingQuantity -= allOrders[order].quantity;
-        orderObject.total -= allOrders[order].quantity;
-
-        // update Stocks and INR balances
-        updateBalances(
-          stockSymbol,
-          stockType,
-          orderPrice,
-          allOrders[order].quantity,
-          takerId,
-          takerType,
-          allOrders[order].userId,
-          allOrders[order].type
-        );
-
-        // Order partially filled
-        allOrders[order].quantity = 0;
+        ORDERBOOK[stockSymbol][stockType].get(orderPrice)!.total -=
+          remainingQuantity;
       }
+
+      // update Stocks and INR balances
+      updateBalances(
+        stockSymbol,
+        stockType,
+        orderPrice,
+        remainingQuantity,
+        takerId,
+        takerType,
+        allOrders[order].userId,
+        allOrders[order].type
+      );
+
+      // Order completely filled
+      remainingQuantity = 0;
+
+      return remainingQuantity;
+    } else {
+      remainingQuantity -= allOrders[order].quantity;
+      orderObject.total -= allOrders[order].quantity;
+      ORDERBOOK[stockSymbol][stockType].get(orderPrice)!.total -=
+        allOrders[order].quantity;
+
+      // update Stocks and INR balances
+      updateBalances(
+        stockSymbol,
+        stockType,
+        orderPrice,
+        allOrders[order].quantity,
+        takerId,
+        takerType,
+        allOrders[order].userId,
+        allOrders[order].type
+      );
+
+      // Order partially filled
+      allOrders[order].quantity = 0;
+
+      // Delete order of this user from the orderbook
+      ORDERBOOK[stockSymbol][stockType].get(orderPrice)?.orders.shift();
     }
   }
   return remainingQuantity;
@@ -392,9 +419,10 @@ const updateBalances = (
   makerId: string,
   makerType: "buy" | "exit"
 ) => {
+  const pseudoPrice = 10 - price;
   // Maker balance and stocks update
   if (makerType == "buy") {
-    INR_BALANCES[makerId].locked -= quantity * price * 100;
+    INR_BALANCES[makerId].locked -= quantity * pseudoPrice * 100;
 
     let makerStockType: "yes" | "no" =
       takerType == "buy" ? (stockType == "yes" ? "no" : "yes") : stockType;
@@ -424,11 +452,17 @@ const updateBalances = (
     INR_BALANCES[takerId].balance -= quantity * price * 100;
 
     if (STOCK_BALANCES[takerId][stockSymbol]) {
-      console.log(STOCK_BALANCES);
-      STOCK_BALANCES[takerId][stockSymbol][stockType]!.quantity += quantity;
+      if (STOCK_BALANCES[takerId][stockSymbol][stockType]) {
+        STOCK_BALANCES[takerId][stockSymbol][stockType].quantity += quantity;
+      } else {
+        STOCK_BALANCES[takerId][stockSymbol][stockType] = {
+          quantity,
+          locked: 0,
+        };
+      }
     } else {
       STOCK_BALANCES[takerId][stockSymbol] = {
-        [stockType]: { quantity: quantity, locked: 0 },
+        [stockType]: { quantity, locked: 0 },
       };
     }
   } else {
