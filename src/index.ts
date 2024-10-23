@@ -1,6 +1,5 @@
 import express from "express";
 import dotenv from "dotenv";
-import router from "./routes/app.router";
 import { connectToRedis } from "./services/redis";
 
 dotenv.config();
@@ -9,12 +8,6 @@ const PORT = process.env.PORT || 8081;
 
 // Connect to redis client
 connectToRedis();
-
-// Middlewares
-app.use(express.json());
-
-// Routes
-// app.use("/api/v1", router);
 
 app.listen(PORT, () => {
   console.log(`Server is listening on port ${PORT}`);

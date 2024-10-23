@@ -8,6 +8,7 @@ export const publisher = createClient();
 // Queue consumer
 const consumer = createClient();
 
+// Connect to redis
 export const connectToRedis = async () => {
   try {
     await publisher.connect();

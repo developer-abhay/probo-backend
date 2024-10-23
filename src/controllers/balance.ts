@@ -1,88 +1,76 @@
-import { Request, Response } from "express";
 import { INR_BALANCES, STOCK_BALANCES } from "../config/globals";
+import { QUEUE_REQUEST } from "../interfaces/requestModels";
 
 // Get INR Balance
-export const getInrBalances = (req: Request, res: Response) => {
-  res.status(200).send(INR_BALANCES);
+export const getInrBalances = (req: QUEUE_REQUEST) => {
+  return { statusCode: 200, data: INR_BALANCES };
 };
 
 // Get INR Balance by User Id
-export const getInrBalanceByUserId = (req: Request, res: Response) => {
-  const userId: string = req.params.userId;
+export const getInrBalanceByUserId = (req: QUEUE_REQUEST) => {
+  const userId = req.params.userId as string;
 
   const userExists = INR_BALANCES[userId];
 
   if (!userExists) {
-    res.send({ error: `User with ID ${userId} does not exist` });
-    return;
+    return {
+      statusCode: 400,
+      data: { error: `User with ID ${userId} does not exist` },
+    };
   }
 
   const balance = INR_BALANCES[userId].balance;
-  res.send({ balance });
+  return { statusCode: 400, data: balance };
 };
 
 // Get Stock Balance
-export const getStockBalances = (req: Request, res: Response) => {
-  res.send(STOCK_BALANCES);
+export const getStockBalances = (req: QUEUE_REQUEST) => {
+  return { statusCode: 200, data: STOCK_BALANCES };
 };
 
 // Get Stock Balance By User Id
-export const getStockBalancebyUserId = (req: Request, res: Response) => {
-  const userId: string = req.params.userId;
+export const getStockBalancebyUserId = (req: QUEUE_REQUEST) => {
+  const userId = req.params.userId as string;
 
   const userExists = INR_BALANCES[userId];
   const stocksExists = STOCK_BALANCES[userId];
 
   if (!userExists) {
-    res.send({ error: `User with Id ${userId} does not exist` });
-    return;
+    return {
+      statusCode: 400,
+      data: { error: `User with Id ${userId} does not exist` },
+    };
   }
   if (!stocksExists) {
-    res.send({ message: `No stocks for user with userId ${userId}` });
-    return;
+    return {
+      statusCode: 200,
+      data: { message: `No stocks for user with userId ${userId}` },
+    };
   }
 
-  res.send(STOCK_BALANCES[userId]);
-
-  // const stockArray = STOCK_BALANCES[userId];
-  // const stockArrayKeys = Object.keys(stockArray);
-  // const stockArrayValues = Object.values(stockArray);
-
-  // const balance = [];
-  // let yesStocks = 0;
-  // let noStocks = 0;
-
-  // for (let i = 0; i < stockArrayKeys.length; i++) {
-  //   const key = stockArrayKeys[i];
-  //   const value = {
-  //     yes: stockArrayValues[i].yes?.quantity,
-  //     no: stockArrayValues[i].no?.quantity,
-  //   };
-  //   balance.push({ [key]: value });
-
-  //   yesStocks += stockArrayValues[i].yes?.quantity || 0;
-  //   noStocks += stockArrayValues[i].no?.quantity || 0;
-  // }
-  // res.send({
-  //   data: { totalBalance: { yes: yesStocks, no: noStocks }, balance },
-  // });
+  return { statusCode: 200, data: STOCK_BALANCES[userId] };
 };
 
 // Om Ramp Wallet
-export const onRamp = (req: Request, res: Response) => {
-  const userId: string = req.body.userId;
-  const amount: number = req.body.amount;
+export const onRamp = (req: QUEUE_REQUEST) => {
+  const userId = req.body.userId as string;
+  const amount = req.body.amount as number;
 
   const userExists = INR_BALANCES[userId];
 
   if (!userExists) {
-    res.send({ error: `User with ID ${userId} does not exist` });
-    return;
+    return {
+      statusCode: 400,
+      data: { error: `User with ID ${userId} does not exist` },
+    };
   }
 
   INR_BALANCES[userId].balance += amount;
 
-  res.status(200).send({
-    message: `Onramped ${userId} with amount ${amount}`,
-  });
+  return {
+    statusCode: 200,
+    data: {
+      message: `Onramped ${userId} with amount ${amount}`,
+    },
+  };
 };

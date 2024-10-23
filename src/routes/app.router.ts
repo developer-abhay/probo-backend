@@ -26,19 +26,54 @@ import { publisher } from "../services/redis";
 export const matchEndpoint = (data: QUEUE_DATA_ELEMENT) => {
   let response;
   switch (data.endpoint) {
-    // 1.
+    // create user and symbol
     case "/user/create/:userId":
       response = createUser(data.req);
       break;
-    // 2.
     case "/symbol/create/:stockSymbol":
       response = createSymbol(data.req);
       break;
-    // 3.
+
+    // Balances
+    case "/balances/inr":
+      response = getInrBalances(data.req);
+      break;
+    case "/balances/inr/:userId":
+      response = getInrBalanceByUserId(data.req);
+      break;
+    case "/balances/stock":
+      response = getStockBalances(data.req);
+      break;
+    case "/balances/stock/:stockSymbol":
+      response = getStockBalancebyUserId(data.req);
+      break;
+    case "/onramp/inr":
+      response = onRamp(data.req);
+      break;
+
+    // Orderbook
+    case "/orderbook":
+      response = getOrderBook(data.req);
+      break;
+    case "/orderbook/:stockSymbol":
+      response = viewOrders(data.req);
+      break;
+
+    // Orders
+    case "/order/buy":
+      response = buyOrder(data.req);
+      break;
+    case "/order/sell":
+      response = sellOrder(data.req);
+      break;
+    case "/order/cancel":
+      response = cancelOrder(data.req);
+      break;
+
+    // Extra endpoints
     case "/trade/mint":
       response = mintToken(data.req);
       break;
-    // 4.
     case "/reset":
       response = reset(data.req);
       break;
@@ -46,27 +81,3 @@ export const matchEndpoint = (data: QUEUE_DATA_ELEMENT) => {
 
   publisher.publish(data._id, JSON.stringify(response));
 };
-
-const router = express.Router();
-
-// Create user and Symbol
-// router.post("/user/create/:userId", createUser);
-// router.post("/symbol/create/:stockSymbol", createSymbol);
-// router.post("/trade/mint", mintToken);
-// router.post("/reset", reset);
-
-// Balances
-router.get("/balances/inr", getInrBalances);
-router.get("/balances/inr/:userId", getInrBalanceByUserId);
-router.get("/balances/stock", getStockBalances);
-router.get("/balances/stock/:userId", getStockBalancebyUserId);
-router.post("/onramp/inr", onRamp);
-
-// Orders
-router.get("/orderbook", getOrderBook);
-router.get("/orderbook/:stockSymbol", viewOrders);
-router.post("/order/buy", buyOrder);
-router.post("/order/sell", sellOrder);
-router.post("/order/cancel", cancelOrder);
-
-export default router;

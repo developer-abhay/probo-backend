@@ -8,7 +8,7 @@ export interface ORDER_REQUEST {
   stockSymbol: string;
   quantity: number;
   price: number;
-  stockType: string;
+  stockType: "yes" | "no";
 }
 
 export interface MINT_REQUEST {
@@ -30,6 +30,7 @@ export interface QUEUE_REQUEST {
     stockSymbol?: string;
     quantity?: number;
     price?: number;
+    stockType?: "yes" | "no";
   };
   params: { userId?: string; stockSymbol?: string };
 }

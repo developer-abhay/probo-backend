@@ -1,28 +1,29 @@
-import { Request, Response } from "express";
 import { INR_BALANCES, ORDERBOOK, STOCK_BALANCES } from "../config/globals";
-import { ORDER_REQUEST } from "../interfaces/requestModels";
+import { ORDER_REQUEST, QUEUE_REQUEST } from "../interfaces/requestModels";
 import { ORDERDATA, priceRange } from "../interfaces/globals";
 import { publishOrderbook } from "../services/redis";
 
 // Get order book
-export const getOrderBook = (req: Request, res: Response) => {
-  res.send(ORDERBOOK);
+export const getOrderBook = (req: QUEUE_REQUEST) => {
+  return { statusCode: 200, data: ORDERBOOK };
 };
 
 // View Buy and Sell Orders
-export const viewOrders = (req: Request, res: Response) => {
-  const stockSymbol: string = req.params.stockSymbol;
+export const viewOrders = (req: QUEUE_REQUEST) => {
+  const stockSymbol = req.params.stockSymbol as string;
 
   const symbolExists = ORDERBOOK[stockSymbol];
   if (!symbolExists) {
-    res.send({ error: `Stock with stockSymbol ${stockSymbol} does not exist` });
-    return;
+    return {
+      statusCode: 200,
+      data: { error: `Stock with stockSymbol ${stockSymbol} does not exist` },
+    };
   }
-  res.send(ORDERBOOK[stockSymbol]);
+  return { statusCode: 200, data: ORDERBOOK[stockSymbol] };
 };
 
 // Buy Order
-export const buyOrder = (req: Request, res: Response) => {
+export const buyOrder = (req: QUEUE_REQUEST) => {
   const { userId, stockSymbol } = req.body as ORDER_REQUEST;
   const quantity = Number(req.body.quantity);
   const price: priceRange = Number(req.body.price) as priceRange;
@@ -32,20 +33,23 @@ export const buyOrder = (req: Request, res: Response) => {
   const symbolExists = ORDERBOOK[stockSymbol];
 
   if (!userExists) {
-    res.send({ error: `User with user Id ${userId} does not exist` });
-    return;
+    return {
+      statusCode: 400,
+      data: { error: `User with user Id ${userId} does not exist` },
+    };
   }
   if (!symbolExists) {
-    res.send({ error: `Stock with stockSymbol ${stockSymbol} does not exist` });
-    return;
+    return {
+      statusCode: 400,
+      data: { error: `Stock with stockSymbol ${stockSymbol} does not exist` },
+    };
   }
 
   const requiredBalance = quantity * price;
   const userBalance = INR_BALANCES[userId].balance / 100;
 
   if (requiredBalance > userBalance) {
-    res.status(400).send({ message: "Insufficient INR balance" });
-    return;
+    return { statusCode: 400, data: { message: "Insufficient INR balance" } };
   }
 
   // Sort and Filter the orderbook for less than or equal to price
@@ -62,8 +66,7 @@ export const buyOrder = (req: Request, res: Response) => {
   // No stocks for sale -> Create a Pseudo Sell Order
   if (availableQuantity == 0) {
     initiateSellOrder(stockSymbol, stockType, price, quantity, userId, "buy");
-    res.send({ message: "Bid Submitted" });
-    return;
+    return { statusCode: 200, data: { message: "Bid Submitted" } };
   }
 
   // ********** Matching Logic ************
@@ -107,13 +110,16 @@ export const buyOrder = (req: Request, res: Response) => {
     }
   }
 
-  res.status(200).send({
-    message: `Buy order placed and trade executed`,
-  });
+  return {
+    statusCode: 200,
+    data: {
+      message: `Buy order placed and trade executed`,
+    },
+  };
 };
 
 // Sell Order
-export const sellOrder = (req: Request, res: Response) => {
+export const sellOrder = (req: QUEUE_REQUEST) => {
   const { userId, stockSymbol } = req.body as ORDER_REQUEST;
   const quantity = Number(req.body.quantity);
   const price = Number(req.body.price) as priceRange;
@@ -123,25 +129,30 @@ export const sellOrder = (req: Request, res: Response) => {
   const symbolExists = ORDERBOOK[stockSymbol];
 
   if (!userExists) {
-    res.send({ error: `User with user Id ${userId} does not exist` });
-    return;
+    return {
+      statusCode: 400,
+      data: { error: `User with user Id ${userId} does not exist` },
+    };
   }
   if (!symbolExists) {
-    res.send({ error: `Stock with stockSymbol ${stockSymbol} does not exist` });
-    return;
+    return {
+      statusCode: 400,
+      data: { error: `Stock with stockSymbol ${stockSymbol} does not exist` },
+    };
   }
 
   const stockAvailable = STOCK_BALANCES[userId][stockSymbol]; // Does user have this stock.
   if (!stockAvailable) {
-    res.send({ message: `You do not own any stock of ${stockSymbol}` });
-    return;
+    return {
+      statusCode: 400,
+      data: { message: `You do not own any stock of ${stockSymbol}` },
+    };
   }
 
   const stockBalanceOfUser = Number(stockAvailable[stockType]?.quantity) || 0; // Quantity of stocks user own
 
   if (quantity > stockBalanceOfUser) {
-    res.status(400).send({ message: "Insufficient stock balance" });
-    return;
+    return { statusCode: 400, data: { message: "Insufficient stock balance" } };
   }
 
   // Checking for any buy orders (pseudo sell in opposite stock type)
@@ -170,10 +181,12 @@ export const sellOrder = (req: Request, res: Response) => {
   if (totalAvailableQuantity == 0) {
     initiateSellOrder(stockSymbol, stockType, price, quantity, userId, "exit");
 
-    res.send({
-      message: `Sell order placed for ${quantity} '${stockType}' options at price ${price}.`,
-    });
-    return;
+    return {
+      statusCode: 200,
+      data: {
+        message: `Sell order placed for ${quantity} '${stockType}' options at price ${price}.`,
+      },
+    };
   }
 
   // Matching Sell Orders with Buy orders (pseudo Sell)
@@ -190,8 +203,10 @@ export const sellOrder = (req: Request, res: Response) => {
       "sell"
     );
     publishOrderbook(stockSymbol); // Publish to all subscribers
-    res.status(200).send({ message: "Sell order filled completely" });
-    return;
+    return {
+      statusCode: 200,
+      data: { message: "Sell order filled completely" },
+    };
   }
 
   // Sell Order with partial Matching
@@ -205,31 +220,36 @@ export const sellOrder = (req: Request, res: Response) => {
     "sell"
   );
   publishOrderbook(stockSymbol); // Publish to all subscribers
-  res
-    .status(200)
-    .send({ message: "Sell order partially filled and rest are initiated" });
-  return;
+  return {
+    statusCode: 200,
+    data: { message: "Sell order partially filled and rest are initiated" },
+  };
 };
 
 // Cancel Order
-export const cancelOrder = (req: Request, res: Response) => {
-  const { userId, stockSymbol, price, orderId } = req.body;
+export const cancelOrder = (req: QUEUE_REQUEST) => {
+  // const { userId, stockSymbol, price, orderId } = req.body;
+  const { userId, stockSymbol, price } = req.body;
   const stockType = req.body.stockType as "yes" | "no";
-  const userExists = INR_BALANCES[userId];
-  const symbolExists = ORDERBOOK[stockSymbol];
+  const userExists = INR_BALANCES?.userId;
+  const symbolExists = ORDERBOOK?.stockSymbol;
 
   if (!userExists) {
-    res.send({ error: `User with user Id ${userId} does not exist` });
-    return;
+    return {
+      statusCode: 400,
+      data: { error: `User with user Id ${userId} does not exist` },
+    };
   }
   if (!symbolExists) {
-    res.send({ error: `Stock with stockSymbol ${stockSymbol} does not exist` });
-    return;
+    return {
+      statusCode: 400,
+      data: { error: `Stock with stockSymbol ${stockSymbol} does not exist` },
+    };
   }
 
-  console.log(ORDERBOOK[stockSymbol][stockType]);
+  // console.log(ORDERBOOK[stockSymbol][stockType]);
 
-  res.send({ message: "Sell order canceled" });
+  return { statusCode: 200, data: { message: "Sell order canceled" } };
 };
 
 // Create a Sell order (Either exit or buy(pseudo sell))
