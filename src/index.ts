@@ -4,7 +4,7 @@ import { connectToRedis } from "./services/redis";
 
 dotenv.config();
 const app = express();
-const PORT = process.env.PORT || 8081;
+const PORT = process.env.PORT || 8000;
 
 // Connect to redis client
 connectToRedis();
